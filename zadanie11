@@ -1,0 +1,177 @@
+import java.util.Arrays;
+
+// CPU Interface
+interface CPU {
+    void setRAM(Memory ram);
+    void execute(int address);
+}
+
+// Memory Interface
+interface Memory {
+    short get(int address);
+    void set(int address, short value);
+    short size();
+}
+
+// RAM Implementation
+class RAM implements Memory {
+    private final short[] memory;
+
+    public RAM(int size) {
+        memory = new short[size];
+    }
+
+    @Override
+    public short get(int address) {
+        return memory[address];
+    }
+
+    @Override
+    public void set(int address, short value) {
+        memory[address] = value;
+    }
+
+    @Override
+    public short size() {
+        return (short) memory.length;
+    }
+
+    // New method for safe memory access
+    public short[] getMemorySlice(int start, int end) {
+        return Arrays.copyOfRange(memory, start, end);
+    }
+}
+
+// VonNeumannCPU Implementation
+class VonNeumannCPU implements CPU {
+    private Memory ram;
+    private short A = 0, X = 0, Y = 0, PC = 0;
+    private boolean running = true;
+
+    @Override
+    public void setRAM(Memory ram) {
+        this.ram = ram;
+    }
+
+    @Override
+    public void execute(int address) {
+        PC = (short) address;
+
+        while (running) {
+            short instruction = ram.get(PC++);
+            short argument = ram.get(PC++);
+
+            switch (instruction) {
+                case 4: // INX
+                    X++;
+                    break;
+                case 5: // INY
+                    Y++;
+                    break;
+                case 8: // LDA #V
+                    A = argument;
+                    break;
+                case 9: // LDA V
+                    A = ram.get(argument);
+                    break;
+                case 10: // LDA V,Y
+                    A = ram.get(argument + Y);
+                    break;
+                case 12: // LDX #V
+                    X = argument;
+                    break;
+                case 13: // LDX V
+                    X = ram.get(argument);
+                    break;
+                case 14: // LDX V,Y
+                    X = ram.get(argument + Y);
+                    break;
+                case 16: // LDY #V
+                    Y = argument;
+                    break;
+                case 17: // LDY V
+                    Y = ram.get(argument);
+                    break;
+                case 20: // STA V
+                    ram.set(argument, A);
+                    break;
+                case 24: // TAX
+                    X = A;
+                    break;
+                case 25: // TXA
+                    A = X;
+                    break;
+                case 26: // TXY
+                    Y = X;
+                    break;
+                case 27: // TYX
+                    X = Y;
+                    break;
+                case 28: // ADC #V
+                    A += argument;
+                    break;
+                case 29: // ADC V
+                    A += ram.get(argument);
+                    break;
+                case 30: // ADC X
+                    A += X;
+                    break;
+                case 31: // ADC Y
+                    A += Y;
+                    break;
+                case 128: // JMP #V
+                    PC = argument;
+                    break;
+                case 132: // CMP A,X
+                    if (A == X) PC += 2;
+                    break;
+                case 133: // CMP A,Y
+                    if (A == Y) PC += 2;
+                    break;
+                case 136: // CMP A,#V
+                    if (A == argument) PC += 2;
+                    break;
+                case 137: // CMP X,#V
+                    if (X == argument) PC += 2;
+                    break;
+                case 138: // CMP Y,#V
+                    if (Y == argument) PC += 2;
+                    break;
+                case 254: // NOP
+                    break;
+                case 255: // END
+                    running = false;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown instruction: " + instruction);
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        RAM ram = new RAM(256);
+
+        // Program 1: Initialize A and X, perform addition, and store result
+        short[] program1 = {
+                8, 0,    // LDA #0
+                13, 0,   // LDX 0
+                4, 0,    // INX
+                26, 0,   // TXY
+                31, 0,   // ADC Y
+                28, 2,   // ADC #2
+                20, 1,   // STA 1
+                255, 0   // END
+        };
+
+        for (int i = 0; i < program1.length; i++) {
+            ram.set(10 + i, program1[i]);
+        }
+
+        VonNeumannCPU cpu = new VonNeumannCPU();
+        cpu.setRAM(ram);
+        cpu.execute(10);
+
+        // Verify memory
+        System.out.println("Memory: " + Arrays.toString(ram.getMemorySlice(0, 20)));
+    }
+}
